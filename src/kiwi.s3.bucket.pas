@@ -17,17 +17,18 @@ type
   tkiwiS3Bucket = class(tinterfacedobject, ikiwiS3Bucket)
   private
     { private declarations }
+    [weak]
     fkiwiS3: ikiwiS3;
-    fstrBucket: string;
     fobject: ikiwiS3Object;
+    fstrBucket: string;
 
     function getbucket: string;
   public
     { public declarations }
-    constructor create(pkiwiS3: ikiwiS3; pstraccountName, pstraccountKey: string);
+    constructor create(pkiwiS3: ikiwiS3);
     destructor destroy; override;
 
-    class function new(powner: ikiwiS3; pstraccountName, pstraccountKey: string): ikiwiS3Bucket;
+    class function new(powner: ikiwiS3): ikiwiS3Bucket;
 
     property bucket: string read getbucket;
 
@@ -40,7 +41,7 @@ implementation
 
 { tkiwiS3Bucket }
 
-constructor tkiwiS3Bucket.create(pkiwiS3: ikiwiS3; pstraccountName, pstraccountKey: string);
+constructor tkiwiS3Bucket.create(pkiwiS3: ikiwiS3);
 begin
   fkiwiS3 := pkiwiS3;
   fobject := tkiwiObject.new(pkiwiS3, self);
@@ -48,7 +49,7 @@ end;
 
 destructor tkiwiS3Bucket.destroy;
 begin
-
+  fkiwiS3 := nil;
   inherited;
 end;
 
@@ -145,9 +146,9 @@ begin
   result := self;
 end;
 
-class function tkiwiS3Bucket.new(powner: ikiwiS3; pstraccountName, pstraccountKey: string): ikiwiS3Bucket;
+class function tkiwiS3Bucket.new(powner: ikiwiS3): ikiwiS3Bucket;
 begin
-  result := self.create(powner, pstraccountName, pstraccountKey);
+  result := self.create(powner);
 end;
 
 function tkiwiS3Bucket.&object(pstrobjectName: string): ikiwiS3Object;

@@ -65,9 +65,6 @@ type
     function properties(pstrObjectName: string; var pstrsProperties, pstrsMetadata: tstringlist): boolean;
   end;
 
-var
-  kiwiS3Client: tkiwiS3Client;
-
 implementation
 
 function CaseSensitiveHyphenCompare(List: TStringList; Index1, Index2: Integer): Integer;
@@ -78,9 +75,6 @@ begin
   else
     Result := 0;
 end;
-
-
-{ TAmazonS3 }
 
 function tkiwiS3Client.buildQueryParameterString(const QueryPrefix: string; QueryParameters: TStringList; DoSort, ForURL: Boolean): string;
 var

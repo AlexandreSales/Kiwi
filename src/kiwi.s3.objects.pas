@@ -12,7 +12,9 @@ type
   tkiwiObject = class(tinterfacedobject, ikiwiS3Object)
   private
     { private declarations }
+    [weak]
     fkiwiS3: ikiwiS3;
+    [weak]
     fkiwiS3Bucket: ikiwiS3Bucket;
 
     fstrObjectName: string;
@@ -52,15 +54,12 @@ begin
   result := false;
 
   try
-    if kiwiS3Client <> nil then
-    begin
-      result := tkiwiS3Client
-                  .new(fkiwiS3.accountName, fkiwiS3.accountKey, fkiwiS3.region, fkiwiS3Bucket.bucket, fkiwiS3.accelerate)
-                  .delete(strObjectName, lstrResponseInfo);
+    result := tkiwiS3Client
+                .new(fkiwiS3.accountName, fkiwiS3.accountKey, fkiwiS3.region, fkiwiS3Bucket.bucket, fkiwiS3.accelerate)
+                .delete(strObjectName, lstrResponseInfo);
 
-      if not(result)  then
-          Exception.Create(lstrResponseInfo);
-    end;
+    if not(result)  then
+      exception.create(lstrResponseInfo);
   except
     raise;
   end;
@@ -87,7 +86,7 @@ begin
   result := fkiwiS3;
 
   try
-    if pstrmFileResult <> nil then
+    if pstrmFileResult = nil then
       pstrmFileResult := tmemoryStream.create
     else
       pstrmFileResult.clear;
@@ -201,7 +200,7 @@ begin
                                          lslproperties.values['x-amz-id-2'],
                                          gmttoDateTime(lslproperties.values['Date'])
                                         );
-        end;
+      end;
     except
       on E: Exception do
         raise
@@ -209,6 +208,9 @@ begin
   finally
     if lslProperties <> nil then
       freeandnil(lslProperties);
+
+    if lslmetaData <> nil then
+      freeandnil(lslmetaData);
   end;
 end;
 
