@@ -4,6 +4,7 @@ interface
 
 uses
   System.Classes,
+  System.DateUtils,
   kiwi.s3.interfaces, System.SysUtils;
 
 type
@@ -11,20 +12,22 @@ type
   tkiwiObject = class(tinterfacedobject, ikiwiS3Object)
   private
     { private declarations }
-    fstrFileName: string;
-    fowner: ikiwiS3;
+    fkiwiS3: ikiwiS3;
+    fkiwiS3Bucket: ikiwiS3Bucket;
+
+    fstrObjectName: string;
   public
     { public declarations }
-    constructor create(powner: ikiwiS3);
+    constructor create(pikiwiS3: ikiwiS3; pikiwiS3Bucket: ikiwiS3Bucket);
     destructor destroy; override;
 
-    class function new(powner: ikiwiS3): ikiwiS3Object;
+    class function new(pikiwiS3: ikiwiS3; pikiwiS3Bucket: ikiwiS3Bucket): ikiwiS3Object;
 
     function name(pstrobjectName: string): ikiwiS3Object;
     function get(var pstrmFileResult: tmemoryStream): ikiwiS3;
-    function post(var strmFile: tmemoryStream): ikiwiS3;
-    function delete(strFile: string): boolean;
-    function properties(var slresultPropertie: tstringlist): ikiwiS3;
+    function post(var strmObject: tmemoryStream): ikiwiS3;
+    function delete(strObjectName: string): boolean;
+    function properties(var kiwiObjectInfo: ikiwiS3ObjectInfo): ikiwiS3;
   end;
 
 implementation
@@ -32,26 +35,31 @@ implementation
 { tKiwiObjects }
 
 uses
-  kiwi.s3.client;
+  kiwi.s3.client, kiwi.s3.objectinfo;
 
-constructor tkiwiObject.create(powner: ikiwiS3);
+constructor tkiwiObject.create(pikiwiS3: ikiwiS3; pikiwiS3Bucket: ikiwiS3Bucket);
 begin
-  fowner := powner;
-  fstrFileName := '';
+  fkiwiS3 := pikiwiS3;
+  fkiwiS3Bucket := pikiwiS3Bucket;
+
+  fstrObjectName := '';
 end;
 
-function tkiwiObject.delete(strFile: string): boolean;
+function tkiwiObject.delete(strObjectName: string): boolean;
 var
-  lstrResponse: string;
+  lstrResponseInfo: string;
 begin
   result := false;
 
   try
     if kiwiS3Client <> nil then
     begin
-      result := kiwiS3Client.Delete(strFile, lstrResponse);
+      result := tkiwiS3Client
+                  .new(fkiwiS3.accountName, fkiwiS3.accountKey, fkiwiS3.region, fkiwiS3Bucket.bucket, fkiwiS3.accelerate)
+                  .delete(strObjectName, lstrResponseInfo);
+
       if not(result)  then
-          Exception.Create(lstrResponse);
+          Exception.Create(lstrResponseInfo);
     end;
   except
     raise;
@@ -60,31 +68,34 @@ end;
 
 destructor tkiwiObject.destroy;
 begin
-  fowner := nil;
+  fkiwiS3 := nil;
+  fkiwiS3Bucket := nil;
 
   inherited;
 end;
 
 function tkiwiObject.name(pstrobjectName: string): ikiwiS3Object;
 begin
-  fstrFileName := pstrobjectName;
+  fstrObjectName := pstrobjectName;
   result := self;
-
 end;
 
 function tkiwiObject.get(var pstrmFileResult: tmemoryStream): ikiwiS3;
 var
   lstrResponseInfo: string;
 begin
-  result := fowner;
+  result := fkiwiS3;
 
   try
-    if pstrmFileResult = nil then
+    if pstrmFileResult <> nil then
       pstrmFileResult := tmemoryStream.create
     else
-      pstrmFileResult.Clear;
+      pstrmFileResult.clear;
 
-    if not((kiwiS3Client <> nil) and kiwiS3Client.get(fstrFileName, pstrmFileResult, lstrResponseInfo)) then
+    if not( tkiwiS3Client
+            .new(fkiwiS3.accountName, fkiwiS3.accountKey, fkiwiS3.region, fkiwiS3Bucket.bucket, fkiwiS3.accelerate)
+            .get(fstrObjectName, pstrmFileResult, lstrResponseInfo)
+          ) then
     begin
       if pstrmFileResult <> nil then
         freeandnil(pstrmFileResult);
@@ -97,26 +108,30 @@ begin
   end;
 end;
 
-class function tkiwiObject.new(powner: ikiwiS3): ikiwiS3Object;
+class function tkiwiObject.new(pikiwiS3: ikiwiS3; pikiwiS3Bucket: ikiwiS3Bucket): ikiwiS3Object;
 begin
-  result := self.create(powner);
+  result := self.create(pikiwiS3, pikiwiS3Bucket);
 end;
 
-function tkiwiObject.post(var strmFile: tmemoryStream): ikiwiS3;
+function tkiwiObject.post(var strmObject: tmemoryStream): ikiwiS3;
 var
   lstrResponseInfo: string;
 begin
-  result := fowner;
+  result := fkiwiS3;
 
   try
     try
-      if strmFile = nil then
+      if strmObject = nil then
         exit;
 
-      if not ((kiwiS3Client <> nil) and kiwiS3Client.Upload(fstrFileName, strmFile, lstrResponseInfo)) then
+      strmObject.position := 0;
+      if not (tkiwiS3Client
+                .new(fkiwiS3.accountName, fkiwiS3.accountKey, fkiwiS3.region, fkiwiS3Bucket.bucket, fkiwiS3.accelerate)
+                .upload(fstrObjectName, strmObject, lstrResponseInfo)
+              ) then
       begin
-        if strmFile <> nil then
-          freeandnil(strmFile);
+        if strmObject <> nil then
+          freeandnil(strmObject);
 
         raise Exception.Create(lstrResponseInfo)
       end;
@@ -127,23 +142,66 @@ begin
   end;
 end;
 
-function tkiwiObject.properties(var slresultPropertie: tstringlist): ikiwiS3;
+function tkiwiObject.properties(var kiwiObjectInfo: ikiwiS3ObjectInfo): ikiwiS3;
+
+    function gmttoDateTime(const value: string): tdatetime;
+    var
+      lstrValue: string;
+    const
+      cDaysOfWeekEn: array [1 .. 7] of string = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun');
+      cMonthsOfYearEn: array [1 .. 12] of string = ('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+    begin
+      result := 0;
+
+      if value.trim = '' then
+        exit;
+
+      lstrValue := value;
+      lstrValue := stringreplace(lstrValue, ' GMT', '', [rfReplaceAll]);
+      lstrValue := stringreplace(lstrValue, 'GMT', '', [rfReplaceAll]);
+
+      for var intCount := Low(cDaysOfWeekEn) to High(cDaysOfWeekEn) do
+      begin
+        lstrValue := stringreplace(lstrValue, cDaysOfWeekEn[intCount] + ', ', '', [rfReplaceAll]);
+        lstrValue := stringreplace(lstrValue, cDaysOfWeekEn[intCount] + ' ', '', [rfReplaceAll]);
+        lstrValue := stringreplace(lstrValue, cDaysOfWeekEn[intCount], '', [rfReplaceAll]);
+      end;
+
+      for var intCount := Low(cMonthsOfYearEn) to High(cMonthsOfYearEn) do
+      begin
+        lstrValue := stringreplace(lstrValue, ' ' + cMonthsOfYearEn[intCount] + ' ', '/' + intCount.ToString + '/', [rfReplaceAll]);
+        lstrValue := stringreplace(lstrValue, cMonthsOfYearEn[intCount], '/' + intCount.ToString + '/', [rfReplaceAll]);
+      end;
+
+      try
+        result := strtodatetime(lstrValue);
+      except
+      end;
+    end;
+
 var
-  lslProperties: TStringlist;
+  lslproperties: tstringlist;
+  lslmetaData: tstringlist;
 begin
-  result := fowner;
-  lslProperties := nil;
+  result := fkiwiS3;
+  lslproperties := nil;
+  lslmetaData := nil;
 
   try
     try
-      if slresultPropertie = nil then
-        slresultPropertie := tstringlist.create;
-
-      if not((kiwiS3Client <> nil) and kiwiS3Client.GetObjectProperties(fstrFileName, lslProperties, slresultPropertie)) then
+      if  tkiwiS3Client
+            .new(fkiwiS3.accountName, fkiwiS3.accountKey, fkiwiS3.region, fkiwiS3Bucket.bucket, fkiwiS3.accelerate)
+             .properties(fstrObjectName, lslproperties, lslmetaData) then
       begin
-        if slresultPropertie <> nil then
-          FreeAndNil(slresultPropertie);
-      end;
+        kiwiObjectInfo := tkiwiS3ObjectInfo.new(
+                                         fstrObjectName,
+                                         gmttoDateTime(lslproperties.values['Last-Modified']),
+                                         lslproperties.values['ETag'],
+                                         0,
+                                         lslproperties.values['x-amz-id-2'],
+                                         gmttoDateTime(lslproperties.values['Date'])
+                                        );
+        end;
     except
       on E: Exception do
         raise

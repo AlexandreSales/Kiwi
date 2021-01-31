@@ -10,6 +10,14 @@ uses
 type
   ikiwiS3 = interface;
 
+  ikiwiS3Client = interface
+    ['{4B70CE57-0C46-44EF-BF88-0003E568AC08}']
+    function get(const pstrObjectName: string; var pstrmResult: tmemorystream; var pstrError: string): boolean;
+    function upload(const pstrObjectName: string; var pstrmMemoryFile: tmemorystream; var pstrError: string; pSlMetaData: tstrings = nil): boolean;
+    function delete(const pstrObjectName: string; var pstrError: string): boolean;
+    function properties(pstrObjectName: string; var pstrsProperties, pstrsMetadata: tstringlist): boolean;
+  end;
+
   ikiwiS3ObjectInfo = interface
     ['{72D8B337-8BFC-4768-8979-75F954BBA989}']
     procedure setname(const value: string);
@@ -40,7 +48,7 @@ type
     function get(var strmFileResult: tmemoryStream): ikiwiS3;
     function post(var strmFile: tmemoryStream): ikiwiS3;
     function delete(strFile: string): boolean;
-    function properties(var slresultPropertie: tstringlist): ikiwiS3;
+    function properties(var kiwiS3ObjectInfo: ikiwiS3ObjectInfo): ikiwiS3;
   end;
 
   ikiwiS3Bucket = interface
@@ -48,11 +56,24 @@ type
     function name(pstrBucket: string): ikiwiS3Bucket; overload;
     function find(var pListFiles : TList<ikiwiS3ObjectInfo>; pstrFilterOptions: string = ''; pstrFindFile: string = ''): ikiwiS3; overload;
     function &object(pstrFileName: string): ikiwiS3Object; overload;
+
+    function getbucket: string; overload;
+    property bucket: string read getbucket;
   end;
 
   ikiwiS3 = interface
     ['{0968AEE5-DA95-4826-B663-FFC83E7E4162}']
     function bucket(pstrBucket: string): ikiwiS3Bucket; overload;
+
+    function getaccountKey: string; overload;
+    function getaccountName: string; overload;
+    function getregion: string; overload;
+    function getaccelerate: boolean; overload;
+
+    property accountName: string read getaccountName;
+    property accountKey: string read getaccountKey;
+    property region: string read getregion;
+    property accelerate: boolean read getaccelerate;
   end;
 
 

@@ -16,11 +16,12 @@ uses
   Data.Cloud.CloudAPI,
   Data.Cloud.AmazonAPI,
   Xml.XMLIntf,
-  Xml.XMLDoc;
+  Xml.XMLDoc,
+  kiwi.s3.interfaces;
 
 type
 
-  tkiwiS3Client = class
+  tkiwiS3Client = class(tinterfacedobject, ikiwiS3Client)
   private
     { private declarations }
 
@@ -49,19 +50,19 @@ type
     constructor Create(accountName, accountKey, region, bucket: string; accelerate: boolean = false);
     destructor Destroy; override;
 
+    class function new(accountName, accountKey, region, bucket: string; accelerate: boolean = false): ikiwiS3Client;
+
     property AccountName: string read fstraccountName write fstraccountName;
     property AccountKey: string read fstraccountKey write fstraccountKey;
     property Bucket: string read fstrBucket write fstrBucket;
     property Region: string read fstrRegion write fstrRegion;
     property Accelerate: boolean read fbooAccelerate write fbooAccelerate;
 
-    function get(const pstrFileName: string; var pstrmResult: TMemoryStream; var pstrError: string): Boolean;
-    function upload(const pstrFileName: string; var pstrmMemoryFile: TMemoryStream; var pstrError: string; pSlMetaData: tstrings = nil): Boolean;
-    function delete(const pstr_file_name: string; var pstr_error: string): Boolean;
+    function get(const pstrObjectName: string; var pstrmResult: tmemorystream; var pstrError: string): boolean;
+    function upload(const pstrObjectName: string; var pstrmMemoryFile: tmemorystream; var pstrError: string; pslmetaData: tstrings = nil): boolean;
+    function delete(const pstrObjectName: string; var pstrError: string): boolean;
 
-    function getObjectProperties(pstrObjectName: string; var pstrsProperties, pstrsMetadata: TStringlist): Boolean;
-
-
+    function properties(pstrObjectName: string; var pstrsProperties, pstrsMetadata: tstringlist): boolean;
   end;
 
 var
@@ -340,7 +341,7 @@ begin
   fconnIdhttp.Request.BasicAuthentication := False;
 end;
 
-function tkiwiS3Client.delete(const pstr_file_name: string; var pstr_error: string): Boolean;
+function tkiwiS3Client.delete(const pstrObjectName: string; var pstrError: string): boolean;
 var
   l_str_meta_name     : string;
   l_str_url_file      : string;
@@ -366,8 +367,8 @@ begin
       l_sl_headers := buildHeaders(false);
 
       { authorization }
-      l_str_url_file    := 'http://'+l_sl_headers.Values['host']+ '/' + pstr_file_name.trim;
-      l_str_queryprefix := '/'+ fstrBucket + '/' + pstr_file_name.trim;
+      l_str_url_file    := 'http://'+l_sl_headers.Values['host']+ '/' + pstrObjectName.trim;
+      l_str_queryprefix := '/'+ fstrBucket + '/' + pstrObjectName.trim;
 
       l_str_string_sign := buildStringToSign('DELETE', fstrRegion, l_sl_headers, nil, l_str_queryprefix, l_str_url_file);
 
@@ -402,17 +403,17 @@ begin
         exit;
 
       if not(fconnIdhttp.Response.ResponseCode in [100, 200]) then
-        pstr_error := fconnIdhttp.Response.ResponseText
+        pstrError := fconnIdhttp.Response.ResponseText
       else
         result  := true;
 
     except on
       e: exception do
       begin
-        if pstr_error.Trim <> ''  then
-          pstr_error  := pstr_error + ', '+ e.message
+        if pstrError.Trim <> ''  then
+          pstrError  := pstrError + ', '+ e.message
         else
-          pstr_error  := e.message;
+          pstrError  := e.message;
       end;
     end;
   finally
@@ -429,7 +430,7 @@ begin
   inherited;
 end;
 
-function tkiwiS3Client.get(const pstrFileName: string; var pstrmResult: TMemoryStream; var pstrError: string): Boolean;
+function tkiwiS3Client.get(const pstrObjectName: string; var pstrmResult: tmemorystream; var pstrError: string): boolean;
 var
   lslHeaders: tstringList;
   lintCount: integer;
@@ -452,8 +453,8 @@ begin
       lslHeaders := buildHeaders(false);
 
       { authorization }
-      lstrUrlFile    := 'http://'+lslHeaders.Values['host']+ '/' + pstrFileName.trim;
-      lstrQueryPrefix := '/'+ fstrBucket + '/' + pstrFileName.trim;
+      lstrUrlFile    := 'http://'+lslHeaders.Values['host']+ '/' + pstrObjectName.trim;
+      lstrQueryPrefix := '/'+ fstrBucket + '/' + pstrObjectName.trim;
 
       lstrStringSign := buildStringToSign('GET', fstrRegion, lslHeaders, nil, lstrQueryPrefix, lstrUrlFile);
 
@@ -514,7 +515,7 @@ begin
   end;
 end;
 
-function tkiwiS3Client.getObjectProperties(pstrObjectName: string; var pstrsProperties, pstrsMetadata: tstringList): Boolean;
+function tkiwiS3Client.properties(pstrObjectName: string; var pstrsProperties, pstrsMetadata: tstringlist): boolean;
 var
   lstrMetaName: string;
   lstrUrlFile: string;
@@ -571,11 +572,15 @@ begin
       begin
         result  := true;
 
-        pstrsProperties := TStringList.Create;
+        if pstrsProperties = nil then
+          pstrsProperties := tstringlist.create;
+
         pstrsProperties.CaseSensitive := false;
         pstrsProperties.Duplicates := TDuplicates.dupIgnore;
 
-        pstrsMetadata := TStringList.Create;
+        if pstrsMetadata = nil then
+          pstrsMetadata := tstringlist.create;
+
         pstrsMetadata.CaseSensitive := false;
         pstrsMetadata.Duplicates := TDuplicates.dupIgnore;
 
@@ -589,7 +594,7 @@ begin
             pstrsMetadata.Values[lstrHeaderName.Substring(11)] := fconnIdhttp.Response.RawHeaders.Values[lstrHeaderName];
           end
           else
-            pstrsProperties.Values[lstrHeaderName ] := fconnIdhttp.Response.RawHeaders.ValueFromIndex[lintCount];
+            pstrsProperties.Values[lstrHeaderName ] := fconnIdhttp.Response.RawHeaders.Values[lstrHeaderName];
         end;
       end;
 
@@ -643,6 +648,11 @@ begin
   Result := LeftStr(Result,Pos('.',Result)-1)+'Z';
 end;
 
+class function tkiwiS3Client.new(accountName, accountKey, region, bucket: string; accelerate: boolean): ikiwiS3Client;
+begin
+  result := self.create(accountName, accountKey, region, bucket, accelerate);
+end;
+
 function tkiwiS3Client.parseResponseError(pstrResponse, pstrResultString: string): string;
 var
   xmlDoc: IXMLDocument;
@@ -694,7 +704,7 @@ begin
   end;
 end;
 
-function tkiwiS3Client.upload(const pstrFileName: string; var pstrmMemoryFile: TMemoryStream; var pstrError: string; pSlMetaData: tstrings = nil): Boolean;
+function tkiwiS3Client.upload(const pstrObjectName: string; var pstrmMemoryFile: tmemorystream; var pstrError: string; pslmetaData: tstrings = nil): boolean;
 var
   lstrMetaName: string;
   lstrUrlFile: string;
@@ -738,8 +748,8 @@ begin
         end;
 
       { authorization }
-      lstrUrlFile    := 'http://'+lslHeaders.Values['host']+ '/' + pstrFileName.trim;
-      lstrQueryPrefix := '/'+ fstrBucket + '/' + pstrFileName.trim;
+      lstrUrlFile    := 'http://'+lslHeaders.Values['host']+ '/' + pstrObjectName.trim;
+      lstrQueryPrefix := '/'+ fstrBucket + '/' + pstrObjectName.trim;
 
       lstrStringSign := buildStringToSign('PUT', fstrRegion, lslHeaders, nil, lstrQueryPrefix, lstrUrlFile);
 

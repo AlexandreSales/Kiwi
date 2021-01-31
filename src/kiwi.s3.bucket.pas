@@ -17,17 +17,19 @@ type
   tkiwiS3Bucket = class(tinterfacedobject, ikiwiS3Bucket)
   private
     { private declarations }
-    fowner: ikiwiS3;
-    fstraccountName: string;
-    fstraccountKey: string;
+    fkiwiS3: ikiwiS3;
     fstrBucket: string;
     fobject: ikiwiS3Object;
+
+    function getbucket: string;
   public
     { public declarations }
-    constructor create(powner: ikiwiS3; pstraccountName, pstraccountKey: string);
+    constructor create(pkiwiS3: ikiwiS3; pstraccountName, pstraccountKey: string);
     destructor destroy; override;
 
     class function new(powner: ikiwiS3; pstraccountName, pstraccountKey: string): ikiwiS3Bucket;
+
+    property bucket: string read getbucket;
 
     function name(pstrBucket: string): ikiwiS3Bucket;
     function find(var pListFiles : tlist<ikiwiS3ObjectInfo>; pstrFilterOptions: string = ''; pstrFindFile: string = ''): ikiwiS3;
@@ -38,10 +40,10 @@ implementation
 
 { tkiwiS3Bucket }
 
-constructor tkiwiS3Bucket.create(powner: ikiwiS3; pstraccountName, pstraccountKey: string);
+constructor tkiwiS3Bucket.create(pkiwiS3: ikiwiS3; pstraccountName, pstraccountKey: string);
 begin
-  fowner := powner;
-  fobject := tkiwiObject.new(powner);
+  fkiwiS3 := pkiwiS3;
+  fobject := tkiwiObject.new(pkiwiS3, self);
 end;
 
 destructor tkiwiS3Bucket.destroy;
@@ -58,7 +60,7 @@ var
   lstorageService: tamazonStorageService;
   lamazonBucketResult: tamazonBucketResult;
 begin
-  result := fowner;
+  result := fkiwiS3;
 
   lslamazonOptions := nil;
 
@@ -78,8 +80,8 @@ begin
       { cria componente de conexao com o s3 }
         lamazonConnectionInfo := tamazonConnectionInfo.Create(nil);
         lamazonConnectionInfo.queueEndpoint := cstrKiwiS3QueueEndpoint;
-        lAmazonConnectionInfo.accountName := fstraccountName;
-        lAmazonConnectionInfo.accountKey := fstraccountKey;
+        lAmazonConnectionInfo.accountName := fkiwiS3.accountName;
+        lAmazonConnectionInfo.accountKey := fkiwiS3.accountKey;
 
         lAmazonConnectionInfo.StorageEndpoint := cstrKiwiS3Endpoint;
         lAmazonConnectionInfo.TableEndpoint := cstrKiwiS3TableEndpoint;
@@ -132,10 +134,15 @@ begin
   end;
 end;
 
+function tkiwiS3Bucket.getbucket: string;
+begin
+ result := fstrBucket;
+end;
+
 function tkiwiS3Bucket.name(pstrBucket: string): ikiwiS3Bucket;
 begin
+  fstrBucket := pstrBucket;
   result := self;
-  fstrBucket := fstrBucket;
 end;
 
 class function tkiwiS3Bucket.new(powner: ikiwiS3; pstraccountName, pstraccountKey: string): ikiwiS3Bucket;
