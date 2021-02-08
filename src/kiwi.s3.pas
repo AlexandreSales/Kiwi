@@ -21,12 +21,12 @@ type
   tkiwiS3 = class(tinterfacedobject, ikiwiS3)
   private
     { private declarations }
-    fbucket: ikiwiS3Bucket;
-
     fstraccountName: string;
     fstraccountKey: string;
     fstrRegion: string;
     fbooAccelerate: boolean;
+
+    fbucket: ikiwiS3Bucket;
 
     function getaccountKey: string;
     function getaccountName: string;
@@ -61,12 +61,13 @@ begin
   fstraccountName := pstraccountName;
   fstraccountKey := pstraccountKey;
   fstrRegion := pstrRegion;
-
-  fbucket := tkiwiS3Bucket.new(self);
+  fbucket := tkiwiS3Bucket.create(self, fstraccountName, fstraccountKey);
 end;
 
 destructor tkiwiS3.destroy;
 begin
+  if kiwiS3Client <> nil then
+    FreeAndNil(kiwiS3Client);
 
   inherited;
 end;
