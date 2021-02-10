@@ -17,7 +17,9 @@ type
   tkiwiS3Bucket = class(tinterfacedobject, ikiwiS3Bucket)
   private
     { private declarations }
+    [weak]
     fkiwiS3: ikiwiS3;
+
     fstrBucket: string;
     fobject: ikiwiS3Object;
 
